@@ -1,0 +1,83 @@
+plugins {
+    id 'java'
+    id 'de.undercouch.download' version '5.3.0'
+}
+
+group 'net.starryi.robocode'
+version '1.0-SNAPSHOT'
+
+ext {
+    ROBOCODE_SETUP_DIR = '.setup'
+    ROBOCODE_INSTALL_DIR = '.robocode'
+    ROBOCODE_VERSION = '1.9.4.7'
+    ROBOCODE_BATTLE = ''
+}
+
+repositories {
+    mavenCentral()
+}
+
+sourceSets {
+    main {
+        java.destinationDirectory.set(file("${ROBOCODE_INSTALL_DIR}/robots"))
+    }
+}
+
+dependencies {
+    compileOnly fileTree("${ROBOCODE_INSTALL_DIR}/libs/") { include '*.jar' }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.0'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+task setup {
+
+    doLast {
+        def setupJarName = "robocode-${ROBOCODE_VERSION}-setup.jar"
+        def setupJarPath = "${ROBOCODE_SETUP_DIR}/${setupJarName}"
+
+        def robocodeCoreJarName = "robocode.core-${ROBOCODE_VERSION}.jar"
+        def robocodeCoreJarPath = "${ROBOCODE_INSTALL_DIR}/libs/${robocodeCoreJarName}"
+
+        if (!file(robocodeCoreJarPath).exists()) {
+            download.run {
+                src "https://nchc.dl.sourceforge.net/project/robocode/robocode/${ROBOCODE_VERSION}/${setupJarName}"
+                dest setupJarPath
+                overwrite false
+                quiet false
+            }
+
+            delete ROBOCODE_INSTALL_DIR
+
+            javaexec {
+                classpath = files(setupJarPath)
+                args ROBOCODE_INSTALL_DIR
+                args 'silent'
+            }
+        }
+    }
+}
+
+compileJava.dependsOn('setup')
+
+task robocode(type: JavaExec, dependsOn: 'build') {
+    workingDir ROBOCODE_INSTALL_DIR
+
+    jvmArgs '-Xmx512M'
+    jvmArgs '-Dsun.io.useCanonCaches=false'
+    jvmArgs '-Ddebug=true'
+    jvmArgs '-DROBOTPATH=robots'
+    jvmArgs '-DBATTLEPATH=battles'
+
+    classpath "${ROBOCODE_INSTALL_DIR}/libs/*"
+
+    mainClass.set('robocode.Robocode')
+
+    if (file("${ROBOCODE_INSTALL_DIR}/battles/${ROBOCODE_BATTLE}.battle").exists()) {
+        args '-battle', "battles/${ROBOCODE_BATTLE}.battle"
+    }
+}
